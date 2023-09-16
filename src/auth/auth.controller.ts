@@ -14,6 +14,7 @@ import ResponseBuilder from 'src/utils/response';
 import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
 import { Public } from './auth.guard';
+import { RefreshDto } from './dto/refresh-dto';
 
 @Controller('auth')
 export class AuthController {
@@ -45,11 +46,23 @@ export class AuthController {
   @Public()
   @Post('sign-in')
   async signIn(@Body() signInDto: SignInDto) {
-    const user = await this.authService.signIn(signInDto);
+    const res = await this.authService.signIn(signInDto);
     return this.responseBuilder
       .code(200)
       .success(true)
-      .data(user)
+      .data(res)
+      .message('Signed in successfully')
+      .build();
+  }
+
+  @Public()
+  @Post('sign-in/renew-password')
+  async signInWithRenewPassword(@Body() signInDto: SignInDto) {
+    const res = await this.authService.signInWithRenewPassword(signInDto);
+    return this.responseBuilder
+      .code(200)
+      .success(true)
+      .data(res)
       .message('Signed in successfully')
       .build();
   }
@@ -57,11 +70,11 @@ export class AuthController {
   @Public()
   @Post('sign-up')
   async signUp(@Body() signUpDto: SignUpDto) {
-    const user = await this.authService.signUp(signUpDto);
+    const res = await this.authService.signUp(signUpDto);
     return this.responseBuilder
-      .code(200)
+      .code(201)
       .success(true)
-      .data(user)
+      .data(res)
       .message('Signed up successfully')
       .build();
   }
@@ -71,10 +84,22 @@ export class AuthController {
   async createPassword(@Body() checkUserDto: CheckUserDto) {
     await this.authService.createPassword(checkUserDto);
     return this.responseBuilder
-      .code(200)
+      .code(201)
       .success(true)
       .data(null)
       .message('Password has been sent successfully')
+      .build();
+  }
+
+  @Public()
+  @Post('refresh')
+  async refresh(@Body() refreshDto: RefreshDto) {
+    const res = await this.authService.refresh(refreshDto);
+    return this.responseBuilder
+      .code(200)
+      .success(true)
+      .data(res)
+      .message('Refreshed successfully')
       .build();
   }
 }

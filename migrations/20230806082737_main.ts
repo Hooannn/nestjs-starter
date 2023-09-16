@@ -8,8 +8,6 @@ export async function up(knex: Knex): Promise<void> {
     table.string('email', 255).notNullable().unique();
     table.string('password', 255).notNullable();
     table.string('avatar', 255).nullable();
-    table.string('refresh_token', 255).nullable();
-    table.string('reset_password_token', 255).nullable();
     table.timestamps(true, true);
   });
 
