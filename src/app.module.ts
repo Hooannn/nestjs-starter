@@ -57,7 +57,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         },
       },
       defaults: {
-        from: '<noreply@moneymaster.com>',
+        from: '<noreply@any.com>',
       },
     }),
   ],

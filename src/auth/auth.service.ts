@@ -286,7 +286,7 @@ export class AuthService {
   private async sendGeneratedPasswordMail(email: string, password: string) {
     const mailOptions: ISendMailOptions = {
       to: email,
-      subject: 'Register account - Money Master',
+      subject: 'Register account - Title',
       html: registerTemplate(password),
     };
     return await this.sendMail(mailOptions);
