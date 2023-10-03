@@ -14,7 +14,7 @@ import config from 'src/configs';
 import Redis from 'ioredis';
 import { QueryDto } from 'src/utils/query.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsSelect, Repository } from 'typeorm';
+import { DataSource, FindOptionsSelect, Repository } from 'typeorm';
 
 @Injectable()
 export class UsersService {
@@ -24,7 +24,12 @@ export class UsersService {
   ) {}
 
   private findOptionsSelect: FindOptionsSelect<User> = {
-    password: false,
+    id: true,
+    first_name: true,
+    last_name: true,
+    email: true,
+    roles: true,
+    avatar: true,
   };
 
   async checkUser(params: { email: string }) {
@@ -50,6 +55,7 @@ export class UsersService {
     try {
       const user = this.usersRepository.create(createUserDto);
       const res = await this.usersRepository.save(user);
+      delete res.password;
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -173,8 +179,9 @@ export class UsersService {
 
   async update(id: number, updateUserDto: UpdateUserDto, updatedBy?: number) {
     try {
-      const res = await this.usersRepository.update(id, updateUserDto);
-      return res;
+      await this.usersRepository.update(id, updateUserDto);
+
+      return await this.findOne(id);
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }

@@ -6,7 +6,7 @@ export enum Role {
   Admin = 'admin',
 }
 
-@Entity()
+@Entity('users')
 export class User extends DefaultEntity {
   @Column({
     length: 50,
@@ -29,7 +29,7 @@ export class User extends DefaultEntity {
     type: 'enum',
     enum: Role,
     array: true,
-    default: Role.User,
+    default: [Role.User],
   })
   roles: Role[];
 

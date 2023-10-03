@@ -84,7 +84,7 @@ export class UsersController {
     delete updateUserDto.password;
     const user = await this.usersService.update(userId, updateUserDto, userId);
 
-    return new Response<User | any>({
+    return new Response<User>({
       code: 200,
       success: true,
       data: user,
@@ -105,7 +105,7 @@ export class UsersController {
       changePasswordDto,
     );
 
-    return new Response<User | any>({
+    return new Response<User>({
       code: 200,
       success: true,
       data: user,
@@ -144,7 +144,7 @@ export class UsersController {
       req.auth?.userId,
     );
 
-    return new Response<User | any>({
+    return new Response<User>({
       code: 200,
       success: true,
       data: updatedRecord,
@@ -155,12 +155,12 @@ export class UsersController {
   @Delete(':id')
   @Roles(Role.Admin)
   async remove(@Param('id') id: string) {
-    const record = await this.usersService.remove(+id);
+    await this.usersService.remove(+id);
 
-    return new Response<User | any>({
+    return new Response<any>({
       code: 200,
       success: true,
-      data: record,
+      data: { id },
       message: 'Deleted',
     });
   }

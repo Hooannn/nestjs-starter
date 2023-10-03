@@ -11,7 +11,6 @@ import { AuthGuard } from './auth/auth.guard';
 import { JwtModule } from '@nestjs/jwt';
 import { BullModule } from '@nestjs/bull';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './users/entities/user.entity';
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -20,11 +19,11 @@ import { User } from './users/entities/user.entity';
       database: config.PGDATABASE,
       username: config.PGUSER,
       password: config.PGPASSWORD,
+      logging: config.NODE_ENV !== 'production',
       port: 5432,
       ssl: true,
-      entities: [User],
-      autoLoadEntities: false,
-      synchronize: false,
+      autoLoadEntities: true,
+      synchronize: true,
     }),
     BullModule.forRoot({
       redis: {
@@ -37,7 +36,7 @@ import { User } from './users/entities/user.entity';
     LoggerModule.forRoot({
       pinoHttp: {
         transport:
-          process.env.NODE_ENV !== 'production'
+          config.NODE_ENV !== 'production'
             ? { target: 'pino-pretty' }
             : undefined,
       },

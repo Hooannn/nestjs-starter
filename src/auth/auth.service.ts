@@ -145,21 +145,13 @@ export class AuthService {
         last_name: '',
       });
 
-      const updatedUser = await this.usersService.update(
-        createdUser.id,
-        {
-          created_by: createdUser.id,
-        },
-        createdUser.id,
-      );
-
       const { access_token, refresh_token } = await this.getCredentials(
         createdUser.id,
         createdUser.roles,
       );
 
       return {
-        user: updatedUser,
+        user: createdUser,
         credentials: { access_token, refresh_token },
       };
     } catch (error) {
@@ -222,21 +214,13 @@ export class AuthService {
         avatar: picture,
       });
 
-      const updatedUser = await this.usersService.update(
-        createdUser.id,
-        {
-          created_by: createdUser.id,
-        },
-        createdUser.id,
-      );
-
       const { access_token, refresh_token } = await this.getCredentials(
         createdUser.id,
         createdUser.roles,
       );
 
       return {
-        user: updatedUser,
+        user: createdUser,
         credentials: { access_token, refresh_token },
       };
     }
