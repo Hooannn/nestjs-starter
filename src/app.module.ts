@@ -3,7 +3,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { Knex as KnexModule } from './database';
-import { NotificationsModule } from './notifications/notifications.module';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
@@ -17,7 +16,6 @@ import { JwtModule } from '@nestjs/jwt';
   imports: [
     UsersModule,
     KnexModule,
-    NotificationsModule,
     LoggerModule.forRoot(),
     AuthModule,
     JwtModule.register({

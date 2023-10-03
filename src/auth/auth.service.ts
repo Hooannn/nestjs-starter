@@ -1,11 +1,10 @@
 import {
   HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import axios from 'axios';
-import { InjectKnex, Knex } from 'nestjs-knex';
 import { UsersService } from 'src/users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { SignInDto } from './dto/sign-in.dto';
@@ -17,64 +16,65 @@ import config from 'src/configs';
 import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { registerTemplate } from 'src/mailer/templates/password';
 import { RefreshDto } from './dto/refresh-dto';
-
+import { HttpService } from '@nestjs/axios';
+import { Role } from './auth.roles';
 export interface JwtPayloads {
   userId: string;
+  roles: [Role];
 }
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectKnex() private readonly knex: Knex,
     @Inject('REDIS') private readonly redisClient: Redis,
-    private usersService: UsersService,
-    private mailerService: MailerService,
-    private jwtService: JwtService,
+    private readonly usersService: UsersService,
+    private readonly mailerService: MailerService,
+    private readonly jwtService: JwtService,
+    private readonly httpService: HttpService,
   ) {}
-
-  async checkUser(params: { email: string }) {
-    try {
-      const user = await this.knex
-        .table('users')
-        .select('first_name', 'last_name', 'id', 'email')
-        .where({ email: params.email })
-        .first();
-      return user;
-    } catch (error) {
-      throw new HttpException(error, 400);
-    }
-  }
 
   async signIn(signInDto: SignInDto) {
     try {
-      const user = await this.usersService.findOneByEmail(signInDto.email);
-      if (!user) throw new HttpException('Unregistered email address', 400);
+      const requestUser = await this.usersService.findPassword(signInDto.email);
+      if (!requestUser)
+        throw new HttpException(
+          'Unregistered email address',
+          HttpStatus.BAD_REQUEST,
+        );
       const isPasswordMatched = compareSync(
-        signInDto.password.toString(),
-        user.password.toString(),
+        signInDto.password?.toString(),
+        requestUser.password?.toString(),
       );
+      const authenticatedUser = await this.usersService.findOne(requestUser.id);
       if (!isPasswordMatched)
         throw new UnauthorizedException('Invalid password');
 
       const { access_token, refresh_token } = await this.getCredentials(
-        user.id,
+        authenticatedUser.id,
+        authenticatedUser.roles,
       );
 
-      return { user, credentials: { access_token, refresh_token } };
+      return {
+        user: authenticatedUser,
+        credentials: { access_token, refresh_token },
+      };
     } catch (error) {
-      throw new HttpException(error, 400);
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
   }
 
   async signInWithRenewPassword(signInDto: SignInDto) {
     try {
       const user = await this.usersService.findOneByEmail(signInDto.email);
-      if (!user) throw new HttpException('Unregistered email address', 400);
+      if (!user)
+        throw new HttpException(
+          'Unregistered email address',
+          HttpStatus.BAD_REQUEST,
+        );
       const generatedPassword = await this.redisClient.get(
         `email:${signInDto.email}`,
       );
-      const isPasswordMatched =
-        parseInt(generatedPassword) === signInDto.password;
+      const isPasswordMatched = generatedPassword === signInDto.password;
 
       if (!isPasswordMatched)
         throw new UnauthorizedException('Invalid password');
@@ -86,43 +86,49 @@ export class AuthService {
 
       const { access_token, refresh_token } = await this.getCredentials(
         user.id,
+        user.roles,
       );
 
-      this.usersService.update(user.id, {
-        password: newHashedPassword,
-      });
+      this.usersService.update(
+        user.id,
+        {
+          password: newHashedPassword,
+        },
+        user.id,
+      );
 
       return { user, credentials: { access_token, refresh_token } };
     } catch (error) {
-      throw new HttpException(error, 400);
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
   }
 
   async createPassword(params: { email: string }) {
     try {
       const generatedPassword = generatePassword();
-      return Promise.all([
-        this.sendGeneratedPasswordMail(params.email, generatedPassword),
-        this.redisClient.setex(
-          `email:${params.email}`,
-          parseInt(config.PASSWORD_LIFE),
-          generatedPassword,
-        ),
-      ]);
+      this.sendGeneratedPasswordMail(params.email, generatedPassword);
+      this.redisClient.setex(
+        `email:${params.email}`,
+        parseInt(config.PASSWORD_LIFE),
+        generatedPassword,
+      );
     } catch (error) {
-      throw new HttpException(error, 400);
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
   }
 
   async signUp(signUpDto: SignUpDto) {
     try {
       const user = await this.usersService.findOneByEmail(signUpDto.email);
-      if (user) throw new HttpException('Registered email address', 400);
+      if (user)
+        throw new HttpException(
+          'Registered email address',
+          HttpStatus.BAD_REQUEST,
+        );
       const generatedPassword = await this.redisClient.get(
         `email:${signUpDto.email}`,
       );
-      const isPasswordMatched =
-        parseInt(generatedPassword) === signUpDto.password;
+      const isPasswordMatched = generatedPassword === signUpDto.password;
 
       if (!isPasswordMatched)
         throw new UnauthorizedException(`Invalid password`);
@@ -139,37 +145,50 @@ export class AuthService {
         last_name: '',
       });
 
-      const { access_token, refresh_token } = await this.getCredentials(
+      const updatedUser = await this.usersService.update(
+        createdUser.id,
+        {
+          created_by: createdUser.id,
+        },
         createdUser.id,
       );
 
+      const { access_token, refresh_token } = await this.getCredentials(
+        createdUser.id,
+        createdUser.roles,
+      );
+
       return {
-        user: createdUser,
+        user: updatedUser,
         credentials: { access_token, refresh_token },
       };
     } catch (error) {
-      throw new HttpException(error, 400);
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
   }
 
   async refresh(refreshDto: RefreshDto) {
     try {
       const requestToken = refreshDto.refreshToken;
-      const tokenPayload = this.jwtService.decode(requestToken) as JwtPayloads;
+      const tokenPayload = (await this.jwtService.verifyAsync(requestToken, {
+        secret: config.REFRESH_TOKEN_SECRET,
+      })) as JwtPayloads;
       const belongsTo = tokenPayload?.userId;
       if (!belongsTo) throw new UnauthorizedException('Invalid refresh token');
       const legalToken = await this.redisClient.get(
         `refresh_token:${belongsTo}`,
       );
-      await this.jwtService.verifyAsync(legalToken, {
+      await this.jwtService.verifyAsync(legalToken ?? '', {
         secret: config.REFRESH_TOKEN_SECRET,
       });
+      const legalUser = await this.usersService.findOne(parseInt(belongsTo));
       const { access_token, refresh_token } = await this.getCredentials(
-        belongsTo,
+        legalUser.id,
+        legalUser.roles,
       );
       return { credentials: { access_token, refresh_token } };
     } catch (error) {
-      throw new HttpException(error, 400);
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -182,6 +201,7 @@ export class AuthService {
     if (user) {
       const { access_token, refresh_token } = await this.getCredentials(
         user.id,
+        user.roles,
       );
       return {
         user,
@@ -202,12 +222,21 @@ export class AuthService {
         avatar: picture,
       });
 
-      const { access_token, refresh_token } = await this.getCredentials(
+      const updatedUser = await this.usersService.update(
+        createdUser.id,
+        {
+          created_by: createdUser.id,
+        },
         createdUser.id,
       );
 
+      const { access_token, refresh_token } = await this.getCredentials(
+        createdUser.id,
+        createdUser.roles,
+      );
+
       return {
-        user: createdUser,
+        user: updatedUser,
         credentials: { access_token, refresh_token },
       };
     }
@@ -215,7 +244,7 @@ export class AuthService {
 
   private async getPublicGoogleUser(googleAccessToken: string) {
     try {
-      const { data } = await axios.get(
+      const { data } = await this.httpService.axiosRef.get(
         'https://www.googleapis.com/oauth2/v3/userinfo',
         {
           headers: {
@@ -229,11 +258,14 @@ export class AuthService {
     }
   }
 
-  private async getCredentials(userId: string): Promise<{
+  async getCredentials(
+    userId: number,
+    roles: Role[],
+  ): Promise<{
     access_token: string;
     refresh_token: string;
   }> {
-    const access_token = this.generateAccessToken(userId);
+    const access_token = this.generateAccessToken(userId, roles);
     const refresh_token = this.generateRefreshToken(userId);
     await this.redisClient.setex(
       `refresh_token:${userId}`,
@@ -243,9 +275,9 @@ export class AuthService {
     return { access_token, refresh_token };
   }
 
-  private generateAccessToken(userId: string) {
+  private generateAccessToken(userId: number, roles: Role[]) {
     return this.jwtService.sign(
-      { userId },
+      { userId, roles },
       {
         secret: config.ACCESS_TOKEN_SECRET,
         expiresIn: config.ACCESS_TOKEN_LIFE,
@@ -253,12 +285,12 @@ export class AuthService {
     );
   }
 
-  private generateRefreshToken(userId: string) {
+  private generateRefreshToken(userId: number) {
     return this.jwtService.sign(
       { userId },
       {
         secret: config.REFRESH_TOKEN_SECRET,
-        expiresIn: config.REFRESH_TOKEN_LIFE,
+        expiresIn: config.REFRESH_TOKEN_LIFE_D,
       },
     );
   }
@@ -267,7 +299,7 @@ export class AuthService {
     return this.mailerService.sendMail(mailOptions);
   }
 
-  private async sendGeneratedPasswordMail(email: string, password: number) {
+  private async sendGeneratedPasswordMail(email: string, password: string) {
     const mailOptions: ISendMailOptions = {
       to: email,
       subject: 'Register account - Money Master',

@@ -1,18 +1,31 @@
-import { IsString, IsEmail } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  Length,
+  ArrayMinSize,
+  IsOptional,
+} from 'class-validator';
+import { Role } from 'src/auth/auth.roles';
 
 export class CreateUserDto {
   @IsString()
-  readonly first_name: string;
+  first_name: string;
 
   @IsString()
-  readonly last_name: string;
+  last_name: string;
 
   @IsEmail()
-  readonly email: string;
+  email: string;
 
-  @IsEmail()
-  readonly avatar?: string;
-
+  @IsOptional()
   @IsString()
-  readonly password: string;
+  avatar?: string;
+
+  @Length(6, 6)
+  @IsString()
+  password: string;
+
+  @IsOptional()
+  @ArrayMinSize(1)
+  roles?: Role[];
 }
