@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
-import { Knex as KnexModule } from './database';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
@@ -11,12 +9,39 @@ import config from './configs';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './auth/auth.guard';
 import { JwtModule } from '@nestjs/jwt';
-
+import { BullModule } from '@nestjs/bull';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from './users/entities/user.entity';
 @Module({
   imports: [
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: config.PGHOST,
+      database: config.PGDATABASE,
+      username: config.PGUSER,
+      password: config.PGPASSWORD,
+      port: 5432,
+      ssl: true,
+      entities: [User],
+      autoLoadEntities: false,
+      synchronize: false,
+    }),
+    BullModule.forRoot({
+      redis: {
+        host: config.REDIS_HOST,
+        port: parseInt(config.REDIS_PORT),
+        password: config.REDIS_PASSWORD,
+      },
+    }),
     UsersModule,
-    KnexModule,
-    LoggerModule.forRoot(),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? { target: 'pino-pretty' }
+            : undefined,
+      },
+    }),
     AuthModule,
     JwtModule.register({
       global: false,
@@ -39,7 +64,6 @@ import { JwtModule } from '@nestjs/jwt';
   ],
   controllers: [AppController],
   providers: [
-    AppService,
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

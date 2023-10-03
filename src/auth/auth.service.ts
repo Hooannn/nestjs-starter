@@ -17,7 +17,7 @@ import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { registerTemplate } from 'src/mailer/templates/password';
 import { RefreshDto } from './dto/refresh-dto';
 import { HttpService } from '@nestjs/axios';
-import { Role } from './auth.roles';
+import { Role } from 'src/users/entities/user.entity';
 export interface JwtPayloads {
   userId: string;
   roles: [Role];

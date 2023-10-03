@@ -1,10 +1,43 @@
-import { Role } from '../../../src/auth/auth.roles';
-import { DefaultEntity } from '../../../src/utils/default.entity';
+import { DefaultEntity } from 'src/utils/default.entity';
+import { Entity, Column } from 'typeorm';
+
+export enum Role {
+  User = 'user',
+  Admin = 'admin',
+}
+
+@Entity()
 export class User extends DefaultEntity {
-  readonly email: string;
-  readonly first_name: string;
-  readonly last_name: string;
-  readonly roles: Role[];
-  readonly avatar?: string;
-  readonly password?: string;
+  @Column({
+    length: 50,
+    nullable: true,
+  })
+  first_name?: string;
+
+  @Column({
+    length: 50,
+    nullable: true,
+  })
+  last_name?: string;
+
+  @Column({
+    unique: true,
+  })
+  email: string;
+
+  @Column({
+    type: 'enum',
+    enum: Role,
+    array: true,
+    default: Role.User,
+  })
+  roles: Role[];
+
+  @Column({
+    nullable: true,
+  })
+  avatar?: string;
+
+  @Column()
+  password: string;
 }

@@ -15,13 +15,13 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './entities/user.entity';
-import { Role, Roles } from 'src/auth/auth.roles';
+import { Role, User } from './entities/user.entity';
+import { Roles } from 'src/auth/auth.roles';
 import { hashSync } from 'bcrypt';
 import config from 'src/configs';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import Response from 'src/response.entity';
-import { QueryDto } from 'src/query.dto';
+import Response from 'src/utils/response.entity';
+import { QueryDto } from 'src/utils/query.dto';
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -84,7 +84,7 @@ export class UsersController {
     delete updateUserDto.password;
     const user = await this.usersService.update(userId, updateUserDto, userId);
 
-    return new Response<User>({
+    return new Response<User | any>({
       code: 200,
       success: true,
       data: user,
@@ -105,7 +105,7 @@ export class UsersController {
       changePasswordDto,
     );
 
-    return new Response<User>({
+    return new Response<User | any>({
       code: 200,
       success: true,
       data: user,
@@ -144,7 +144,7 @@ export class UsersController {
       req.auth?.userId,
     );
 
-    return new Response<User>({
+    return new Response<User | any>({
       code: 200,
       success: true,
       data: updatedRecord,
@@ -157,7 +157,7 @@ export class UsersController {
   async remove(@Param('id') id: string) {
     const record = await this.usersService.remove(+id);
 
-    return new Response<User>({
+    return new Response<User | any>({
       code: 200,
       success: true,
       data: record,

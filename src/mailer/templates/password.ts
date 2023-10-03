@@ -1,4 +1,4 @@
-export const registerTemplate = (password: number) => `
+export const registerTemplate = (password: string) => `
 <html>
     <head>
         <meta charset="UTF-8" />

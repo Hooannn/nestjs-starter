@@ -7,47 +7,39 @@ import {
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { InjectKnex, Knex } from 'nestjs-knex';
-import { Role } from 'src/auth/auth.roles';
 import { User } from './entities/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { compareSync, hashSync } from 'bcrypt';
 import config from 'src/configs';
 import Redis from 'ioredis';
 import { QueryDto } from 'src/utils/query.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsSelect, Repository } from 'typeorm';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectKnex() private readonly knex: Knex,
     @Inject('REDIS') private readonly redisClient: Redis,
+    @InjectRepository(User) private readonly usersRepository: Repository<User>,
   ) {}
-  private SELECTED_COLUMNS: [
-    'id',
-    'first_name',
-    'last_name',
-    'avatar',
-    'email',
-    'roles',
-    'created_at',
-    'updated_at',
-  ] = [
-    'id',
-    'first_name',
-    'last_name',
-    'avatar',
-    'email',
-    'roles',
-    'created_at',
-    'updated_at',
-  ];
+
+  private findOptionsSelect: FindOptionsSelect<User> = {
+    password: false,
+  };
 
   async checkUser(params: { email: string }) {
     try {
-      const res = await this.knex<User>('users')
-        .select('first_name', 'last_name', 'id', 'email')
-        .where('email', params.email)
-        .first();
+      const res = await this.usersRepository.findOne({
+        select: {
+          first_name: true,
+          last_name: true,
+          email: true,
+          id: true,
+        },
+        where: {
+          email: params.email,
+        },
+      });
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -56,17 +48,8 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto, createdBy?: number) {
     try {
-      const defaultRoles: Role[] = [Role.User];
-      const [res] = await this.knex<User>('users').insert(
-        {
-          ...createUserDto,
-          roles: defaultRoles,
-          created_by: createdBy,
-          updated_by: createdBy,
-        },
-        this.SELECTED_COLUMNS,
-      );
-
+      const user = this.usersRepository.create(createUserDto);
+      const res = await this.usersRepository.save(user);
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -76,12 +59,13 @@ export class UsersService {
   async findAll(query: QueryDto) {
     try {
       const [res, counter] = await Promise.all([
-        this.knex<User>('users')
-          .column(this.SELECTED_COLUMNS)
-          .offset(query.offset)
-          .limit(query.limit),
+        this.usersRepository.find({
+          select: this.findOptionsSelect,
+          skip: query.offset,
+          take: query.limit,
+        }),
 
-        this.knex<User>('users').count('id'),
+        this.usersRepository.count({ select: { id: true } }),
       ]);
 
       return {
@@ -95,11 +79,12 @@ export class UsersService {
 
   async findOne(id: number) {
     try {
-      const res = await this.knex<User>('users')
-        .column(this.SELECTED_COLUMNS)
-        .select()
-        .where('id', id)
-        .first();
+      const res = await this.usersRepository.findOne({
+        select: this.findOptionsSelect,
+        where: {
+          id,
+        },
+      });
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -108,11 +93,12 @@ export class UsersService {
 
   async findOneByEmail(email: string) {
     try {
-      const res = await this.knex<User>('users')
-        .column(this.SELECTED_COLUMNS)
-        .select()
-        .where({ email })
-        .first();
+      const res = await this.usersRepository.findOne({
+        select: this.findOptionsSelect,
+        where: {
+          email,
+        },
+      });
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -121,10 +107,15 @@ export class UsersService {
 
   async findPassword(email: string) {
     try {
-      const res = await this.knex<User>('users')
-        .select('id', 'password')
-        .where({ email })
-        .first();
+      const res = await this.usersRepository.findOne({
+        select: {
+          password: true,
+          id: true,
+        },
+        where: {
+          email,
+        },
+      });
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -133,10 +124,15 @@ export class UsersService {
 
   async findPasswordById(id: number) {
     try {
-      const res = await this.knex<User>('users')
-        .select('id', 'password')
-        .where({ id })
-        .first();
+      const res = await this.usersRepository.findOne({
+        select: {
+          password: true,
+          id: true,
+        },
+        where: {
+          id,
+        },
+      });
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -160,12 +156,12 @@ export class UsersService {
         parseInt(config.SALTED_PASSWORD),
       );
 
-      const [res] = await this.knex<User>('users').where('id', id).update(
+      const res = await this.update(
+        id,
         {
           password: newPassword,
-          updated_by: id,
         },
-        this.SELECTED_COLUMNS,
+        id,
       );
 
       await this.redisClient.del(`refresh_token:${id}`);
@@ -177,12 +173,7 @@ export class UsersService {
 
   async update(id: number, updateUserDto: UpdateUserDto, updatedBy?: number) {
     try {
-      const [res] = await this.knex<User>('users')
-        .where('id', id)
-        .update(
-          { ...updateUserDto, updated_by: updatedBy },
-          this.SELECTED_COLUMNS,
-        );
+      const res = await this.usersRepository.update(id, updateUserDto);
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
@@ -191,9 +182,7 @@ export class UsersService {
 
   async remove(id: number) {
     try {
-      const [res] = await this.knex<User>('users')
-        .where('id', id)
-        .delete(this.SELECTED_COLUMNS);
+      const res = await this.usersRepository.softDelete(id);
       return res;
     } catch (error) {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
